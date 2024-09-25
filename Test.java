@@ -1,0 +1,246 @@
+import java.awt.*;
+import java.io.*;
+import java.awt.event.*;
+import javax.swing.*;
+import java.util.*;
+import java.util.List;
+import javax.swing.border.EmptyBorder;
+import javax.swing.filechooser.FileNameExtensionFilter;
+
+public class Test extends JFrame {
+    private final MojKomponent komponent = new MojKomponent();
+    private Siec siec = new Siec(144, 2, new int[]{25, 3});
+    private String selectedLetter;
+    private final JLabel letterDisplay = new JLabel("None", SwingConstants.CENTER);
+    private final ButtonGroup letterGroup = new ButtonGroup();
+    private List<UczacaWartosc> uczaceWartosci = new ArrayList<>();
+    private List<TestowaWartosc> testoweWartosci = new ArrayList<>();
+
+    public Test(String title) {
+        super(title);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setResizable(false);
+        setSize(1000, 800);
+        setLocationRelativeTo(null);
+
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBorder(new EmptyBorder(10, 10, 10, 10)); // Dodajemy margines
+        mainPanel.add(createControlPanel(), BorderLayout.WEST); // Kontrolki po lewej
+        mainPanel.add(komponent, BorderLayout.CENTER); // Siatka w centrum
+
+        add(mainPanel);
+        setVisible(true);
+    }
+
+    private JPanel createControlPanel() {
+        JPanel controlPanel = new JPanel();
+        controlPanel.setLayout(new BoxLayout(controlPanel, BoxLayout.Y_AXIS));
+        controlPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        JLabel titleLabel = new JLabel("Wybierz literę", SwingConstants.CENTER);
+        titleLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
+        titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT); // Wyśrodkowanie napisu
+        controlPanel.add(titleLabel);
+
+        controlPanel.add(Box.createRigidArea(new Dimension(0, 10))); // Odstęp
+
+        String[] letters = {"O", "D", "M"};
+        for (String letter : letters) {
+            JRadioButton button = new JRadioButton(letter);
+            button.setAlignmentX(Component.CENTER_ALIGNMENT);
+            button.addActionListener(e -> selectedLetter = letter);
+            letterGroup.add(button);
+            controlPanel.add(button);
+        }
+
+        controlPanel.add(Box.createRigidArea(new Dimension(0, 20))); // Odstęp
+
+        addButton(controlPanel, "Clear", e -> komponent.clearGrid());
+        addButton(controlPanel, "Trening", e -> train());
+        addButton(controlPanel, "Testuj", e -> test());
+        addButton(controlPanel, "Rozpoznaj", e -> recognize());
+        addButton(controlPanel, "Dodaj ciąg uczący do pliku", e -> appendDataToFile(komponent.getGridAsInput(), selectedLetter, "ciąg uczący"));
+        addButton(controlPanel, "Dodaj ciąg testowy do pliku", e -> appendDataToFile(komponent.getGridAsInput(), selectedLetter, "ciąg testowy"));
+        addButton(controlPanel, "Zapisz ciąg uczący do pliku", e -> saveDataToFile(uczaceWartosci, "ciagi uczące"));
+        addButton(controlPanel, "Zapisz ciąg testowy do pliku", e -> saveDataToFile(testoweWartosci, "ciągi testowe"));
+        addButton(controlPanel, "Załaduj dane treningowe", e -> loadTrainingData());
+        addButton(controlPanel, "Załaduj dane testowe", e -> loadTestData());
+
+        letterDisplay.setOpaque(true);
+        letterDisplay.setPreferredSize(new Dimension(100, 50));
+        letterDisplay.setFont(new Font("SansSerif", Font.BOLD, 14));
+        letterDisplay.setAlignmentX(Component.CENTER_ALIGNMENT);
+        letterDisplay.setBackground(Color.LIGHT_GRAY);
+        letterDisplay.setForeground(Color.BLACK);
+        letterDisplay.setBorder(BorderFactory.createLineBorder(Color.GRAY, 2));
+        controlPanel.add(Box.createRigidArea(new Dimension(0, 20))); // Odstęp
+        controlPanel.add(letterDisplay);
+
+        return controlPanel;
+    }
+
+    private void addButton(JPanel panel, String title, ActionListener listener) {
+        JButton button = new JButton(title);
+        button.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        button.setMaximumSize(new Dimension(200, 40)); // Ustal maksymalny rozmiar przycisku
+        button.setAlignmentX(Component.CENTER_ALIGNMENT);
+        button.addActionListener(listener);
+        panel.add(button);
+        panel.add(Box.createRigidArea(new Dimension(0, 10))); // Odstęp między przyciskami
+    }
+
+    private void train() {
+        if (uczaceWartosci.isEmpty()) {
+            showMessage("Brak danych uczących");
+            return;
+        }
+
+        for (UczacaWartosc data : uczaceWartosci) {
+            siec.trenuj(data.getInputExamples(), data.getDestination());
+        }
+        showMessage("Trening zakończony");
+    }
+
+    private void test() {
+        if (testoweWartosci.isEmpty()) {
+            showMessage("Brak danych testowych");
+            return;
+        }
+
+        for (TestowaWartosc data : testoweWartosci) {
+            double[] wynik = siec.oblicz_wyjscie(data.getInputExamples());
+            displayResult(wynik, data.getDestination());
+        }
+    }
+
+    private void recognize() {
+        double[] wejscia = komponent.getGridAsInput();
+        double[] wynik = siec.oblicz_wyjscie(wejscia);
+        displayResult(wynik, -1);
+    }
+
+    private void displayResult(double[] wynik, int pozadane) {
+        String[] letters = {"O", "D", "M"};
+
+        for (int i = 0; i < wynik.length; i++) {
+            if (wynik[i] > 0.8) {
+                String message = letters[i];
+                if (pozadane >= 0) {
+                    message += " | Oczekiwane: " + letters[pozadane - 1];
+                }
+                letterDisplay.setText(message);
+                letterDisplay.setBackground(wynik[i] > 0.8 ? Color.GREEN : Color.RED);
+            }
+        }
+    }
+
+    private void loadTrainingData() {
+        loadData(uczaceWartosci, "Trening");
+    }
+
+    private void loadTestData() {
+        loadData(testoweWartosci, "Test");
+    }
+
+    private void loadData(List<?> dataList, String dataType) {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setFileFilter(new FileNameExtensionFilter("Text files", "txt"));
+        if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            try (BufferedReader br = new BufferedReader(new FileReader(fileChooser.getSelectedFile()))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    String[] parts = line.split(":");
+                    double[] input = convertToDouble(parts[0].split(","));
+                    int destination = Integer.parseInt(parts[1]);
+                    if (dataType.equals("Trening")) {
+                        uczaceWartosci.add(new UczacaWartosc(input, destination));
+                    } else {
+                        testoweWartosci.add(new TestowaWartosc(input, destination));
+                    }
+                }
+                showMessage("Dane " + dataType.toLowerCase() + " załadowane.");
+            } catch (IOException e) {
+                e.printStackTrace();
+                showMessage("Błąd przy wczytywaniu danych.");
+            }
+        }
+    }
+
+    private void saveDataToFile(List<?> dataList, String dataType) {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setFileFilter(new FileNameExtensionFilter("Text files", "txt"));
+        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File file = fileChooser.getSelectedFile();
+            if (!file.getName().endsWith(".txt")) {
+                file = new File(file.getAbsolutePath() + ".txt");
+            }
+    
+            try (BufferedWriter bw = new BufferedWriter(new FileWriter(file))) {
+                for (Object data : dataList) {
+                    if (data instanceof UczacaWartosc) {
+                        UczacaWartosc uw = (UczacaWartosc) data;
+                        bw.write(convertArrayToString(uw.getInputExamples()) + ":" + uw.getDestination());
+                    } else if (data instanceof TestowaWartosc) {
+                        TestowaWartosc tw = (TestowaWartosc) data;
+                        bw.write(convertArrayToString(tw.getInputExamples()) + ":" + tw.getDestination());
+                    }
+                    bw.newLine();
+                }
+                showMessage(dataType + " zapisane do pliku.");
+            } catch (IOException e) {
+                e.printStackTrace();
+                showMessage("Błąd przy zapisywaniu danych.");
+            }
+        }
+    }
+    
+    private void appendDataToFile(double[] inputExamples, String destination, String dataType) {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setFileFilter(new FileNameExtensionFilter("Text files", "txt"));
+        if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File file = fileChooser.getSelectedFile();
+
+            int destinated = 0;
+
+            if(destination == "O") destinated = 1;
+            else if(destination == "D") destinated = 2;
+            else if(destination == "M") destinated = 3;
+            
+            try (BufferedWriter bw = new BufferedWriter(new FileWriter(file, true))) { // true -> dopisywanie
+                bw.write(convertArrayToString(inputExamples) + ":" + destinated);
+                bw.newLine();
+                showMessage("Dane dodane do " + dataType);
+            } catch (IOException e) {
+                e.printStackTrace();
+                showMessage("Błąd przy dopisywaniu danych.");
+            }
+        }
+    }
+    
+    private String convertArrayToString(double[] array) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < array.length; i++) {
+            sb.append(array[i]);
+            if (i < array.length - 1) {
+                sb.append(",");
+            }
+        }
+        return sb.toString();
+    }    
+
+    private double[] convertToDouble(String[] input) {
+        double[] inputs = new double[input.length];
+        for (int i = 0; i < input.length; i++) {
+            inputs[i] = Double.parseDouble(input[i]);
+        }
+        return inputs;
+    }
+
+    private void showMessage(String message) {
+        JOptionPane.showMessageDialog(this, message);
+    }
+
+    public static void main(String[] args) {
+        EventQueue.invokeLater(() -> new Test("Neural Network Interface"));
+    }
+}
