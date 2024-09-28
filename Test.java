@@ -12,6 +12,7 @@ public class Test extends JFrame {
     private Siec siec = new Siec(144, 2, new int[]{25, 3});
     private String selectedLetter;
     private final JLabel letterDisplay = new JLabel("None", SwingConstants.CENTER);
+    private final JLabel trainingResultDisplay = new JLabel("Trening: Brak", SwingConstants.CENTER);
     private final ButtonGroup letterGroup = new ButtonGroup();
     private List<UczacaWartosc> uczaceWartosci = new ArrayList<>();
     private List<TestowaWartosc> testoweWartosci = new ArrayList<>();
@@ -20,13 +21,14 @@ public class Test extends JFrame {
         super(title);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setResizable(false);
-        setSize(1000, 800);
+        setSize(1200, 800);
         setLocationRelativeTo(null);
 
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBorder(new EmptyBorder(10, 10, 10, 10)); // Dodajemy margines
         mainPanel.add(createControlPanel(), BorderLayout.WEST); // Kontrolki po lewej
         mainPanel.add(komponent, BorderLayout.CENTER); // Siatka w centrum
+        mainPanel.add(createTrainingResultPanel(), BorderLayout.EAST);
 
         add(mainPanel);
         setVisible(true);
@@ -79,6 +81,22 @@ public class Test extends JFrame {
         return controlPanel;
     }
 
+    private JPanel createTrainingResultPanel() {
+        JPanel resultJPanel = new JPanel();
+        resultJPanel.setLayout(new BoxLayout(resultJPanel, BoxLayout.Y_AXIS));
+        resultJPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        trainingResultDisplay.setOpaque(true);
+        trainingResultDisplay.setPreferredSize(new Dimension(200, 100));
+        trainingResultDisplay.setFont(new Font("SansSerif", Font.BOLD, 16));
+        trainingResultDisplay.setBackground(Color.LIGHT_GRAY);
+        trainingResultDisplay.setForeground(Color.BLACK);
+        trainingResultDisplay.setBorder(BorderFactory.createLineBorder(Color.GRAY, 2));
+        resultJPanel.add(trainingResultDisplay);
+
+        return resultJPanel;
+    }
+
     private void addButton(JPanel panel, String title, ActionListener listener) {
         JButton button = new JButton(title);
         button.setFont(new Font("SansSerif", Font.PLAIN, 14));
@@ -90,15 +108,41 @@ public class Test extends JFrame {
     }
 
     private void train() {
+        double wymaganaSkutecznosc = 88;
+        double aktualnyBladSieci = 100;
+        double minimalnyBladSieci = aktualnyBladSieci;
+        double aktualnaSkutecznosc = 0;
+
         if (uczaceWartosci.isEmpty()) {
             showMessage("Brak danych uczących");
             return;
         }
 
-        for (UczacaWartosc data : uczaceWartosci) {
-            siec.trenuj(data.getInputExamples(), data.getDestination());
+        Collections.shuffle(uczaceWartosci);
+
+        while (aktualnaSkutecznosc < wymaganaSkutecznosc) {
+            for (int i = 0; i < 500; i++) {
+                aktualnyBladSieci = 0;
+                
+                for (UczacaWartosc data : uczaceWartosci) {
+                    double[] wynik = siec.trenuj(data.getInputExamples(), data.getDestination());
+                    aktualnyBladSieci += wynik[0];
+                    aktualnyBladSieci += wynik[1];
+                    aktualnyBladSieci += wynik[2];
+                }
+                minimalnyBladSieci = Math.min(aktualnyBladSieci, minimalnyBladSieci);
+                aktualnaSkutecznosc = (100 - (minimalnyBladSieci / uczaceWartosci.size()) * 100);
+                if (aktualnaSkutecznosc >= wymaganaSkutecznosc) break;
+            }
+
+            trainingResultDisplay.setText("Skutecznosc: " + String.format("%.2f", aktualnaSkutecznosc) + "%");
+
+            if (aktualnaSkutecznosc >= wymaganaSkutecznosc) {
+                showMessage("Trening zakończony");
+                break;
+            }
+            siec = new Siec(144, 2, new int[]{25, 3});
         }
-        showMessage("Trening zakończony");
     }
 
     private void test() {
@@ -121,17 +165,26 @@ public class Test extends JFrame {
 
     private void displayResult(double[] wynik, int pozadane) {
         String[] letters = {"O", "D", "M"};
+        StringBuilder resultMessage = new StringBuilder();
+        double odp = wynik[0];
+        String message = letters[0];
 
-        for (int i = 0; i < wynik.length; i++) {
-            if (wynik[i] > 0.8) {
-                String message = letters[i];
-                if (pozadane >= 0) {
-                    message += " | Oczekiwane: " + letters[pozadane - 1];
-                }
-                letterDisplay.setText(message);
-                letterDisplay.setBackground(wynik[i] > 0.8 ? Color.GREEN : Color.RED);
+        for (int i = 1; i < wynik.length; i++) {
+            if (wynik[i] > odp) {
+                odp = wynik[i];
+                message = letters[i];
             }
+        }     
+
+        if (pozadane >= 0) {
+            // resultMessage.append(message).append(" | Oczekiwane: ").append(letters[pozadane - 1]).append("<br>");
+            System.out.println(message + "|" + odp + " | Oczekiwane: " + letters[pozadane - 1] + "<br>");
+        } else {
+            letterDisplay.setText(message);
+            letterDisplay.setBackground(Color.GREEN);
         }
+
+        trainingResultDisplay.setText("<html>" + resultMessage.toString() + "</html>");
     }
 
     private void loadTrainingData() {
@@ -144,6 +197,7 @@ public class Test extends JFrame {
 
     private void loadData(List<?> dataList, String dataType) {
         JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setCurrentDirectory(new File(System.getProperty("user.dir")));
         fileChooser.setFileFilter(new FileNameExtensionFilter("Text files", "txt"));
         if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             try (BufferedReader br = new BufferedReader(new FileReader(fileChooser.getSelectedFile()))) {
@@ -168,6 +222,7 @@ public class Test extends JFrame {
 
     private void saveDataToFile(List<?> dataList, String dataType) {
         JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setCurrentDirectory(new File(System.getProperty("user.dir")));
         fileChooser.setFileFilter(new FileNameExtensionFilter("Text files", "txt"));
         if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
             File file = fileChooser.getSelectedFile();
