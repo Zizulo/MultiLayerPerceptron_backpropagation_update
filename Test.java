@@ -61,8 +61,8 @@ public class Test extends JFrame {
         addButton(controlPanel, "Trening", e -> train());
         addButton(controlPanel, "Testuj", e -> test());
         addButton(controlPanel, "Rozpoznaj", e -> recognize());
-        addButton(controlPanel, "Dodaj ciąg uczący do pliku", e -> appendDataToFile(komponent.getGridAsInput(), selectedLetter, "ciąg uczący"));
-        addButton(controlPanel, "Dodaj ciąg testowy do pliku", e -> appendDataToFile(komponent.getGridAsInput(), selectedLetter, "ciąg testowy"));
+        addButton(controlPanel, "Dodaj ciąg uczący do listy", e -> appendDataToList(komponent.getGridAsInput(), selectedLetter, "ciąg uczący"));
+        addButton(controlPanel, "Dodaj ciąg testowy do listy", e -> appendDataToList(komponent.getGridAsInput(), selectedLetter, "ciąg testowy"));
         addButton(controlPanel, "Zapisz ciąg uczący do pliku", e -> saveDataToFile(uczaceWartosci, "ciagi uczące"));
         addButton(controlPanel, "Zapisz ciąg testowy do pliku", e -> saveDataToFile(testoweWartosci, "ciągi testowe"));
         addButton(controlPanel, "Załaduj dane treningowe", e -> loadTrainingData());
@@ -87,7 +87,7 @@ public class Test extends JFrame {
         resultJPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
         trainingResultDisplay.setOpaque(true);
-        trainingResultDisplay.setPreferredSize(new Dimension(200, 100));
+        trainingResultDisplay.setPreferredSize(new Dimension(300, 100));
         trainingResultDisplay.setFont(new Font("SansSerif", Font.BOLD, 16));
         trainingResultDisplay.setBackground(Color.LIGHT_GRAY);
         trainingResultDisplay.setForeground(Color.BLACK);
@@ -151,21 +151,26 @@ public class Test extends JFrame {
             return;
         }
 
+        StringBuilder resultMessage = new StringBuilder("<html>Wyniki testowania:<br>");
+
         for (TestowaWartosc data : testoweWartosci) {
             double[] wynik = siec.oblicz_wyjscie(data.getInputExamples());
-            displayResult(wynik, data.getDestination());
+            resultMessage.append(displayResult(wynik, data.getDestination())).append("<br>");
         }
+
+        resultMessage.append("</html>");
+        trainingResultDisplay.setText(resultMessage.toString());
     }
 
     private void recognize() {
         double[] wejscia = komponent.getGridAsInput();
         double[] wynik = siec.oblicz_wyjscie(wejscia);
-        displayResult(wynik, -1);
+        letterDisplay.setText(displayResult(wynik, -1));
+        letterDisplay.setBackground(Color.GREEN);
     }
 
-    private void displayResult(double[] wynik, int pozadane) {
+    private String displayResult(double[] wynik, int pozadane) {
         String[] letters = {"O", "D", "M"};
-        StringBuilder resultMessage = new StringBuilder();
         double odp = wynik[0];
         String message = letters[0];
 
@@ -173,18 +178,16 @@ public class Test extends JFrame {
             if (wynik[i] > odp) {
                 odp = wynik[i];
                 message = letters[i];
+            } else if (odp < 0.8) {
+                message = "Żadna z liter";
             }
         }     
 
         if (pozadane >= 0) {
-            // resultMessage.append(message).append(" | Oczekiwane: ").append(letters[pozadane - 1]).append("<br>");
-            System.out.println(message + "|" + odp + " | Oczekiwane: " + letters[pozadane - 1] + "<br>");
+            return "Rozpoznano: " + message + " | Oczekiwane: " + letters[pozadane-1];
         } else {
-            letterDisplay.setText(message);
-            letterDisplay.setBackground(Color.GREEN);
+            return message;
         }
-
-        trainingResultDisplay.setText("<html>" + resultMessage.toString() + "</html>");
     }
 
     private void loadTrainingData() {
@@ -249,26 +252,19 @@ public class Test extends JFrame {
         }
     }
     
-    private void appendDataToFile(double[] inputExamples, String destination, String dataType) {
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setFileFilter(new FileNameExtensionFilter("Text files", "txt"));
-        if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-            File file = fileChooser.getSelectedFile();
+    private void appendDataToList(double[] inputExamples, String destination, String dataType) {
+        int destinated = 0;
 
-            int destinated = 0;
+        if(destination == "O") destinated = 1;
+        else if(destination == "D") destinated = 2;
+        else if(destination == "M") destinated = 3;
 
-            if(destination == "O") destinated = 1;
-            else if(destination == "D") destinated = 2;
-            else if(destination == "M") destinated = 3;
-            
-            try (BufferedWriter bw = new BufferedWriter(new FileWriter(file, true))) { // true -> dopisywanie
-                bw.write(convertArrayToString(inputExamples) + ":" + destinated);
-                bw.newLine();
-                showMessage("Dane dodane do " + dataType);
-            } catch (IOException e) {
-                e.printStackTrace();
-                showMessage("Błąd przy dopisywaniu danych.");
-            }
+        if (dataType == "ciąg uczący") {
+            uczaceWartosci.add(new UczacaWartosc(inputExamples, destinated));
+            showMessage("Dodano ciąg uczący do listy.");
+        } else if (dataType == "ciąg testowy") {
+            testoweWartosci.add(new TestowaWartosc(inputExamples, destinated));
+            showMessage("Dodano ciąg testowy do listy.");
         }
     }
     
