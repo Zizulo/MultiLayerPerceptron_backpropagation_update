@@ -87,7 +87,7 @@ public class Test extends JFrame {
         resultJPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
         trainingResultDisplay.setOpaque(true);
-        trainingResultDisplay.setPreferredSize(new Dimension(300, 100));
+        trainingResultDisplay.setPreferredSize(new Dimension(400, 100));
         trainingResultDisplay.setFont(new Font("SansSerif", Font.BOLD, 16));
         trainingResultDisplay.setBackground(Color.LIGHT_GRAY);
         trainingResultDisplay.setForeground(Color.BLACK);
@@ -108,7 +108,7 @@ public class Test extends JFrame {
     }
 
     private void train() {
-        double wymaganaSkutecznosc = 88;
+        double wymaganaSkutecznosc = 90;
         double aktualnyBladSieci = 100;
         double minimalnyBladSieci = aktualnyBladSieci;
         double aktualnaSkutecznosc = 0;
@@ -178,7 +178,7 @@ public class Test extends JFrame {
             if (wynik[i] > odp) {
                 odp = wynik[i];
                 message = letters[i];
-            } else if (odp < 0.8) {
+            } else if (odp < 0.9) {
                 message = "Żadna z liter";
             }
         }     
